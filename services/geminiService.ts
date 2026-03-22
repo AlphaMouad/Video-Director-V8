@@ -3364,7 +3364,7 @@ Character:
 
 Shot:
 [SLOT S1 — Opening frame: "The video opens matching Image 1 exactly." + the inframe prose description from the source (body position, expression, mouth state). Two sentences max.]
-[SLOT S2 — Camera doctrine: the camera movement instruction for this specific scene role + lens spec + focal length psychology for this scene's emotional register. Two sentences max.]
+[SLOT S2 — Camera doctrine: the camera movement instruction for this specific scene role + lens spec + focal length psychology for this scene's emotional register. Explicitly include elite cinematic optical parameters (e.g., Arri Alexa 65, Panavision Primo lenses, exact shallow T-stop like T1.4, Kodak Vision3 500T 5219 film stock emulation). Two sentences max.]
 [SLOT S3 — PHYSICS DIFFERENTIAL — the delta between Image 1 and Image 2. Do NOT describe "what happens." Describe the exact state changes: which specific things change from opening to closing frame (head angle shift in degrees, lean direction and amount, expression quality transition, jaw position), AND which things remain constant (background, framing, lighting character). Format: "CHANGES: [list]. CONSTANTS: [list]." This is a closed loop — VEO reads Image 1, applies the delta, arrives at Image 2. Two sentences max.]
 [SLOT S4 — Closing frame: "The video ends matching Image 2 exactly." + the outframe prose description. Two sentences max.]
 
@@ -3548,6 +3548,8 @@ AUDIT ITEM 1 — VISUAL ANCHOR CHECKLIST REFERENCE: If a VISUAL ANCHOR CHECKLIST
 AUDIT ITEM 2 — ENVIRONMENT LOCK VERIFICATION: The BINDING CONSTRAINTS ENVIRONMENT LOCK must specify that the background environment is derived FROM THE CHARACTER IDENTITY PHOTOS — not from a generic studio. The [SYSTEM & SHOT CONSTANTS] section must also confirm this. If either section describes a generic environment ("a dark studio backdrop") instead of the specific photo-derived environment, flag and correct.
 
 AUDIT ITEM 3 — ZERO ALTERATION CONTRACT: Verify the ZERO ALTERATION FROM PHOTOS directive is present in BINDING CONSTRAINTS and that no other section contradicts it by suggesting VEO should "upgrade" or "improve" the visual. If any section says "enhance the lighting" or "cinematic upgrade" in a way that contradicts the photo-exact mandate, correct it.
+
+AUDIT ITEM 4 — CINEMATIC MASTERY: Check that the prompt specifically mandates world-class elite cinematic optical physics. It MUST specify an elite camera sensor (e.g., Arri Alexa 65), premium lenses (e.g., Panavision Primo), an exact shallow T-stop (e.g., T1.4 to T2.0), and film stock emulation (e.g., Kodak Vision3 500T 5219 for organic grain and highlight halation). If these are missing or generic, inject them.
 
 ═══ PASS E — CHARISMATIC CALM AUDIT ═══
 

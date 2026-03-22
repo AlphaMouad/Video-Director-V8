@@ -3610,7 +3610,7 @@ Start immediately with "BINDING CONSTRAINTS:" — CHARACTER line first, then STU
 // ============================================================
 
 // ── Agent System Instruction ─────────────────────────────────
-const VEO_PROMPT_AGENT_SYSTEM = `You are an elite VEO 3.1 prompt engineer using Gemini 3.1 Pro reasoning. Output goes directly to VEO — dense, precise, cinematic. Every sentence is a rendering instruction. No padding.
+const VEO_PROMPT_AGENT_SYSTEM = `You are an elite VEO 3.1 prompt engineer using Gemini 3.1 Pro reasoning. Your output is fed DIRECTLY into the Google VEO / Flow video generation engine along with 3 image ingredients. Therefore, every single word you write must aggressively drive the synthesis of the absolute best, hyper-realistic, elite-quality video possible. There is no room for filler or weak directives.
 
 ABSOLUTE LAWS:
 1. ZERO ANATOMY NAMES — biological experience only: "brow smooth and unhurried," "chin fleshy and still," "jaw soft and floating."
@@ -3710,7 +3710,7 @@ SYNTHESIS DIRECTIVE — CRITICAL:
 The 7-region framework above is your REASONING TOOL, not your output format. VEO is a diffusion model — it generates from the gestalt of a prompt, not a checklist. When you write the [KINETIC PHYSICS ENGINE] section, do NOT list the seven regions. Instead, use them to reason internally, then distill everything into 2-3 sentences that give VEO one unified felt state to generate from. Internal state produces physical expression organically. A checklist produces mechanical averaging. The difference between "brow smooth, chin still, jaw floating" and "the face of someone who stopped needing to prove anything years ago — not performing composure, simply having it" is the difference between a robot and a human being.
 
 VOCAL STANDARD — ADVISOR VOICE:
-Rich full chest resonance — authority in the body, not the throat. Measured pace — the audience waits because they know the value of what is approaching. Consonant precision — crisp, fully articulated, the mark of someone who chooses words deliberately. Falling pitch on every declarative — certainty, never a question. Volume drops on key truths — weight through restraint, not volume. US General American — fully rhotic, stress-timed, zero upspeak.
+PERFECT ENGLISH USA ACCENT IS MANDATORY. The voice MUST be a flawless, native US General American accent. Every /r/ is fully rhotic, "t"s are tapped correctly, and the rhythm is stress-timed. There can be absolutely zero regional or foreign inflection. Rich full chest resonance — authority in the body, not the throat. Measured pace — the audience waits because they know the value of what is approaching. Consonant precision — crisp, fully articulated, the mark of someone who chooses words deliberately. Falling pitch on every declarative — certainty, never a question. Volume drops on key truths — weight through restraint, not volume.
 
 ELITE DELIVERY ARCHITECTURE — THE THREE GOVERNING QUALITIES:
 Every VEO prompt you generate must produce delivery with these three simultaneous qualities. They are not optional. They are not stylistic choices. They are the physics of elite advisory communication:
@@ -4275,9 +4275,9 @@ IDENTITY ANCHORS:
 ━━━━ SECTION 4: [KINETIC PHYSICS ENGINE] ━━━━
 Write EXACTLY 3 SENTENCES. No region list. No bullet points. No checklist. Three unified sentences only — the engine of both charisma and photorealism simultaneously.
 
-SENTENCE 1 — THE PSYCHOLOGICAL CAUSE: The specific internal state of THE PRESENTER at this exact moment, written from inside the experience. Role archetype for this scene: "${roleMetaphor}". Write the felt quality — the specific biological ease of genuine mastery transmitting something real. This is the charisma generator.
+SENTENCE 1 — THE PSYCHOLOGICAL CAUSE: The specific internal state of THE PRESENTER at this exact moment, written from inside the experience. Incorporate the EMOTION from the ROLE-SPECIFIC ACTING DIRECTIVES. Role archetype for this scene: "${roleMetaphor}". Write the felt quality — the specific biological ease of genuine mastery transmitting something real. This is the charisma generator.
 
-SENTENCE 2 — THE BIOLOGICAL CONSEQUENCE: What this internal state produces as physical biology. MANDATORY — INCLUDE VERBATIM IN THIS SENTENCE: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)." Add the specific biological texture of THIS scene: what the skin and jaw and chest do when a person genuinely inhabits this exact psychological cause.
+SENTENCE 2 — THE BIOLOGICAL CONSEQUENCE: What this internal state produces as physical biology. Incorporate the EXPRESSION from the ROLE-SPECIFIC ACTING DIRECTIVES. MANDATORY — INCLUDE VERBATIM IN THIS SENTENCE: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)." Add the specific biological texture of THIS scene: what the skin and jaw and chest do when a person genuinely inhabits this exact psychological cause.
 
 SENTENCE 3 — THE BETWEEN-WORD BIOLOGY: The organic texture of the body between words — jaw releasing under its own mass, chest in quiet rhythm, face carrying the echo of what was just given. MANDATORY — END THIS SENTENCE WITH VERBATIM: "Allow micro-movements: the breath that precedes the word, the fractional weight shift, the blink that lands exactly one beat after the point lands. These are not errors — they are the evidence of life."
 
@@ -4288,6 +4288,7 @@ FIRST LINE — write exactly this as the VERY FIRST LINE of this section, before
 EXPRESSION RULE: All expression changes BUILD — eyes respond first, lower face follows, expression peaks briefly, returns to biological rest. Never instantaneous. Never snap on or off. This rule governs every bracket below.
 
 THEN reproduce the temporal brackets from the TIMING GUIDE FROM PASS A above — same timestamps, same labels, same phrase quotes. Enrich each bracket with:
+— ROLE-SPECIFIC ACTING INJECTION: aggressively inject the specific DELIVERY and EXPRESSION directives from the ROLE-SPECIFIC ACTING DIRECTIVES above into the physical actions of these brackets. The acting must be optimized to perfection for this specific scene type.
 — VOICE-BODY COUPLING: voice and body are ONE instrument — the voice event and body event are the same thing written twice; when the voice drops on "${gravityCenterWord}", shoulders release a half-degree simultaneously
 — SPECIFIC PERSON PROTOCOL: transmitting to ONE specific person — the precise quality of directness for this phrase's content to this one viewer right now
 — WEIGHT PHYSICS (mandatory for PRE-SPEECH ONSET, GRAVITY CENTER, POST-SPEECH SETTLE): body weight distribution and movement physics as tissue under gravity — jaw hanging by its own mass, ribcage descending on exhale, shoulders surrendering millimeters of held tension
@@ -4309,7 +4310,7 @@ Item 1:
 STUDIO AUDIO MANDATE: Complete professional acoustic isolation. Zero music. Zero audio effects. Zero ambient sound. Zero reverb or echo. Fully treated broadcast studio — dead silence except for the voice. Every phoneme at broadcast clarity. Full frequency range, uncolored.
 
 Item 2:
-THE PRESENTER voice: ${voiceFingerprint}. [Describe the specific resonance, chest placement, and authority character of this vocal gear for this scene — the acoustic quality of genuine mastery transmitting something real. US General American: fully rhotic /r/ on every instance, crisp alveolar contacts at word boundaries, falling intonation on every declarative (certainty arriving downward — not a question), stress-timed rhythm, absolute zero upspeak. Contained conviction: most important words are the quietest and most completely articulated — volume drops as significance increases. The gravity center word "${gravityCenterWord}" receives the lowest volume and the most complete phonemic articulation in the scene.]
+THE PRESENTER voice: ${voiceFingerprint}. PERFECT ENGLISH USA ACCENT: Flawless, native US General American accent. [Describe the specific resonance, chest placement, and authority character of this vocal gear for this scene — the acoustic quality of genuine mastery transmitting something real. US General American: fully rhotic /r/ on every instance, crisp alveolar contacts at word boundaries, falling intonation on every declarative (certainty arriving downward — not a question), stress-timed rhythm, absolute zero upspeak. Contained conviction: most important words are the quietest and most completely articulated — volume drops as significance increases. The gravity center word "${gravityCenterWord}" receives the lowest volume and the most complete phonemic articulation in the scene.]
 
 Item 3:
 PHONEMIC LIP-SYNC ARCHITECTURE: ${phonemicPrecomp || `[Per-word mouth geometry for each word of the script in sequence. Bilabials (/p/,/b/,/m/): full lip closure and release. Fricatives (/f/,/v/): upper teeth to lower lip. Alveolars (/t/,/d/,/n/): tongue-tip to alveolar ridge. Open vowels: jaw drops to widest natural position. Jaw travel map: name the peak-open word and peak-closed word. Co-articulation: describe how words blend at 2-3 key boundaries. Breath points: before which words the chest rises, with physical description of each intake. Lip tension notes: bilabial release character and labial activity level throughout.]`}

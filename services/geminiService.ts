@@ -261,6 +261,9 @@ The camera lens absorbs approximately 10% of human energy. What feels slightly e
 ILLUSION OF THE FIRST TIME (applies to every scene):
 The audience must believe the thought is occurring to the presenter at the exact moment it is spoken. Words must not sound read or rehearsed. There must be a visible and audible micro-delay (the "thought-before-word" moment) where the face and eyes register the idea before the vocal tract forms it. Stumbles, breath catching, or slight hesitations to find the right word are tools of authenticity. The emotion must lead the expression, not the other way around.
 
+COGNITIVE CHUNKING & NLP EYE-ACCESSING CUES:
+True human speech does not flow in a continuous, perfectly paced stream. Humans speak in "bursts" or chunks, interspersed with mid-clause micro-pauses while they search for the next idea. Describe these cognitive micro-pauses physically. When the presenter pauses mid-thought, use NLP eye-accessing cues: eyes darting up and left (accessing visual memory), or down and right (accessing kinesthetic feelings) for 0.2 seconds before snapping back to the lens with renewed clarity. This makes the delivery hyper-realistic.
+
 SCENE-BY-SCENE ACTING DIRECTIVES:
 
 Hook (0-15s real time):
@@ -3718,7 +3721,13 @@ QUALITY 2 — CONTAINED POWER: The loudest moment of this scene is not the most 
 
 QUALITY 3 — SPECIFIC PERSON WARMTH: THE PRESENTER is not speaking to an audience. They are transmitting to one specific person. The warmth is genuine — not the performed warmth of a host, but the specific biological warmth of someone who actually cares whether this specific viewer receives and understands what is being given. This produces: eye corners activating before cheeks, micro-expressions of genuine concern for comprehension, the pace of someone who wants every word to land rather than every point to be made. Write this quality as an internal state: "the specific warmth of someone who has already decided that this one person will benefit from this, and is giving what is needed to make that happen."
 
-ILLUSION OF THE FIRST TIME & ORGANIC DELIVERY: Speech must never sound read or perfectly rehearsed. Include natural cadences, cadence variations (speeding through transitional thought, slowing on insight), and the slight micro-pauses or breath stumbles that occur when a human genuinely searches for the precise word to match their thought. This "thought-before-word" delay is essential for authentic delivery.
+HYPER-REALISTIC SPEECH PHYSICS & ELITE ACTING:
+To shatter the AI-generated uncanny valley, you must mandate biological speech rendering. Do not just describe the emotion; describe the physical mechanics of speaking.
+1. The Audible Breath: Instruct VEO to render visible diaphragmatic chest expansion and the audible intake of air before major phrases.
+2. The Wet Release: Emphasize the organic parting of the lips — the slight, wet adherence of the mucosa before separating for speech.
+3. Glottal Onsets & Vocal Grain: Mandate the physical sound of vocal cord vibration (the "grain" or "fry" at the lowest register) and organic glottal onsets when the voice activates.
+4. Cognitive Load Visibility: True human speech is asynchronous. The brain works faster than the mouth. Describe micro-hesitations, slight jaw realignments, and asynchronous muscle movements (e.g., the right brow twitching a fraction of a second before a point is made) to show the cognitive load of a human searching for the precise word.
+5. Illusion of the First Time: Speech must never sound read or perfectly rehearsed. Include natural cadences, cadence variations (speeding through transitional thought, slowing on insight), and the slight micro-pauses or breath stumbles that occur when a human genuinely searches for the precise word to match their thought. This "thought-before-word" delay is essential for authentic delivery.
 
 GRAVITY CENTER: one word per scene that everything builds toward. Voice deepens and slows naturally. Longest inhabited silence after. The viewer feels it land differently from every other word.
 

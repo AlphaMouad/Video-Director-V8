@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --color-gold: #ca8a04;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: #020617;
+  color: #e2e8f0;
+  /* Ambient glow — barely visible warmth at the page centre */
+  background-image:
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(202, 138, 4, 0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 80% 100%, rgba(30, 41, 59, 0.6) 0%, transparent 60%);
+}
+
+/* ─── Gold glow utility ─────────────────────────────────────────── */
+.text-glow {
+  text-shadow: 0 0 40px rgba(234, 179, 8, 0.20), 0 0 80px rgba(234, 179, 8, 0.08);
+}
+
+/* ─── Custom scrollbar ──────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar,
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(202, 138, 4, 0.12);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(202, 138, 4, 0.25);
+}
+
+/* ─── Spinner reverse animation ─────────────────────────────────── */
+@keyframes spin-reverse {
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(0deg);   }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1.8s linear infinite;
+}
+
+/* ─── Gold text gradient ────────────────────────────────────────── */
+.text-gold {
+  color: #ca8a04;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #f59e0b 0%, #ca8a04 40%, #d97706 70%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Selection ─────────────────────────────────────────────────── */
+::selection {
+  background: rgba(202, 138, 4, 0.25);
+  color: #fff;
+}

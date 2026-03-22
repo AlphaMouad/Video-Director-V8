@@ -4082,6 +4082,29 @@ async function generateAgentPrompt(
   const roleMetaphor = roleMetaphorLookup[scene.role as SceneRole]
     ?? 'the specific stillness of someone transmitting something they have held longer than this moment — giving it now because it is time, with the organic ease of someone for whom the act of transmission is simply the natural completion of having understood something deeply';
 
+  // Role-specific acting, emotion, and delivery directives
+  const roleActingDirectivesLookup: Partial<Record<SceneRole, string>> = {
+    'Hook': 'EMOTION: High-voltage urgency masked as calm certainty. EXPRESSION: Intense, unwavering eye contact piercing the lens, slight narrowing of the lower eyelids, absolute conviction. DELIVERY: Fast, perfectly articulated, zero hesitation, striking the first word with full power.',
+    'Call to Action': 'EMOTION: Absolute, un-needy certainty. EXPRESSION: Direct, instructional, firm jaw, confident micro-nod. DELIVERY: Commanding, rhythmic, instructional cadence with sharp, final consonants.',
+    'Value Delivery': 'EMOTION: Generous competence. EXPRESSION: Animated, congruent micro-expressions tracking with the complexity of the thought. DELIVERY: Thoughtful pacing, slowing down on key insights, slightly elevated volume for clarity.',
+    'Storytelling': 'EMOTION: Intimate vulnerability and memory. EXPRESSION: Eyes breaking contact to access memory, softening of the facial muscles, slight asymmetrical nostalgic smile. DELIVERY: Lower volume, breath-heavy, organic pauses, illusion of the first time as the memory arrives.',
+    'Social Proof': 'EMOTION: Objective reporting. EXPRESSION: Grounded, unimpressed by the numbers, matter-of-fact. DELIVERY: Steady, flat declarative cadence, letting the data do the heavy lifting.',
+    'Closing': 'EMOTION: Warm finality and satisfaction. EXPRESSION: Shoulders dropping visibly, Duchenne warmth in the eyes. DELIVERY: Decelerating pace, rich lower register, leaving a resonant silence after the final word.',
+    'Pattern Interrupt': 'EMOTION: Sudden realization or tonal shift. EXPRESSION: Sudden micro-shift in brow tension or eye aperture, physically jarring the viewer\'s expectation. DELIVERY: A noticeable break in rhythm—either a sudden stop or a sudden acceleration.',
+    'Bridge': 'EMOTION: Smooth transition. EXPRESSION: Open, welcoming, inviting the viewer along. DELIVERY: Warm, conversational, slightly elevated pitch to maintain momentum.',
+    'Demonstration': 'EMOTION: Methodical clarity. EXPRESSION: Highly focused, looking at the "object" of demonstration, precise micro-movements. DELIVERY: Instructional, step-by-step rhythm, distinct pauses between actions.',
+    'Objection Handler': 'EMOTION: Empathetic understanding. EXPRESSION: Acknowledging micro-nod, softening of the brow to show listening, followed by a settling into certainty. DELIVERY: Warm, non-defensive, slightly lower pitch, soothing cadence.',
+    'Open Loop': 'EMOTION: Provocative mystery. EXPRESSION: A slight, knowing smirk or a raised brow, eyes holding a secret. DELIVERY: Suspended pitch at the end of the sentence (not upspeak, but an unresolved chord), forcing anticipation.',
+    'Insight Reveal': 'EMOTION: Profound realization. EXPRESSION: The "aha" micro-expression—eyes widening fractionally before settling into deep, grounded eye contact. DELIVERY: A significant pause before the reveal, followed by a slow, weighty delivery of the insight.',
+    'Framework': 'EMOTION: Architect\'s pride. EXPRESSION: Broad, descriptive facial engagement, mapping the concept physically. DELIVERY: Structured, distinct vocal bullet points, clear separation between concepts.',
+    'Case Study': 'EMOTION: Fascinated reporting. EXPRESSION: Engaged, visualizing the scenario, shifting focus as the story evolves. DELIVERY: Narrative flow, accelerating during the action, slowing down for the result.',
+    'Market Intelligence': 'EMOTION: Insider confidence. EXPRESSION: Sharp, analytical gaze, slight forward lean. DELIVERY: Crisp, data-driven, distinct emphasis on numbers and trends.',
+    'Perspective Shift': 'EMOTION: Gentle disruption. EXPRESSION: Warm, inviting, non-combative head tilt. DELIVERY: Soft, persuasive, leading the viewer to the conclusion rather than forcing it.',
+    'Action Framework': 'EMOTION: Pragmatic generosity. EXPRESSION: Encouraging, direct, supportive eye contact. DELIVERY: Clear, actionable cadence, empowering tone, definitive stops.',
+  };
+  const roleActingDirective = roleActingDirectivesLookup[scene.role as SceneRole]
+    ?? 'EMOTION: Engaged authority. EXPRESSION: Present, authentic, breathing naturally. DELIVERY: Measured, organic cadence with clear intent.';
+
   // Gear → psychological state (no gear number in prompt)
   const gearMomentBefore = gear === 4
     ? 'already carrying the conviction — the body of someone who knows precisely what is about to land, the voltage of certainty before the first phoneme'
@@ -4138,6 +4161,9 @@ Retention target: ${(scene as any).retention_target_percent || 75}%
 ${(scene as any).is_pattern_interrupt ? 'PATTERN INTERRUPT: This scene breaks the viewer\'s prediction — the body, voice, and rhythm must shift noticeably from the previous scene\'s register. The disruption is intentional. VEO must render the discontinuity.' : ''}
 ${presenceDirective}
 ${gravityPauseDirective}
+
+ROLE-SPECIFIC ACTING DIRECTIVES (MANDATORY FOR THIS SCENE TYPE):
+${roleActingDirective}
 
 CHARACTER DNA:
 CHARACTER LABEL (use this exact string every time you refer to the character): "${characterLabel}"

@@ -203,6 +203,9 @@ export interface ScriptScene {
     rationale: string;                // "Expression and posture match the exit energy of this scene"
   };
 
+  // Visual Asset Orchestration
+  recommended_b_roll?: string;        // "Full-screen B-roll of [Subject] while audio continues"
+
   // Camera Direction for this scene
   camera_direction: {
     framing: string;

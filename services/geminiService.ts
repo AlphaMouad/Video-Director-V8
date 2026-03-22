@@ -1000,6 +1000,7 @@ RETURN COMPLETE VALID JSON — exactly this structure:
       },
       "recommended_inframe": { "timestamp": "MM:SS.S", "rationale": "string" },
       "recommended_outframe": { "timestamp": "MM:SS.S", "rationale": "string" },
+      "recommended_b_roll": "string — Describe what the B-roll 'second camera' should show while the audio continues (e.g., 'Full screen B-roll of a detailed architectural blueprint'). If no B-roll is needed, leave blank.",
       "camera_direction": {
         "framing": "string — MCU / tight MCU / CU with camera-to-subject distance",
         "movement": "string — locked-off / imperceptible push-in / specific motivation",
@@ -4292,6 +4293,7 @@ EXPRESSION RULE: All expression changes BUILD — eyes respond first, lower face
 
 THEN reproduce the temporal brackets from the TIMING GUIDE FROM PASS A above — same timestamps, same labels, same phrase quotes. Enrich each bracket with:
 — ROLE-SPECIFIC ACTING INJECTION: aggressively inject the specific DELIVERY and EXPRESSION directives from the ROLE-SPECIFIC ACTING DIRECTIVES above into the physical actions of these brackets. The acting must be optimized to perfection for this specific scene type.
+— ELITE ACTING COGNITIVE PROCESSING: Ensure every bracket describes the internal thought process leading the physical expression. Show the "Illusion of the First Time" via micro-hesitations or eye-darts as the presenter searches for a word before finding it.
 — VOICE-BODY COUPLING: voice and body are ONE instrument — the voice event and body event are the same thing written twice; when the voice drops on "${gravityCenterWord}", shoulders release a half-degree simultaneously
 — SPECIFIC PERSON PROTOCOL: transmitting to ONE specific person — the precise quality of directness for this phrase's content to this one viewer right now
 — WEIGHT PHYSICS (mandatory for PRE-SPEECH ONSET, GRAVITY CENTER, POST-SPEECH SETTLE): body weight distribution and movement physics as tissue under gravity — jaw hanging by its own mass, ribcage descending on exhale, shoulders surrendering millimeters of held tension

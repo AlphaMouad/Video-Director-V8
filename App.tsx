@@ -703,7 +703,34 @@ export default function App() {
           <div className="flex-1 flex overflow-hidden">
 
             {/* ── Sidebar ───────────────────────────────────────── */}
-            <div className="w-[380px] border-r border-white/[0.04] overflow-y-auto bg-[#010510] p-3 space-y-1.5 shrink-0 custom-scrollbar">
+            <div className="w-[380px] border-r border-white/[0.04] flex flex-col bg-[#010510] shrink-0 overflow-hidden">
+              {/* Dynamic Fatigue Mapping UI */}
+              <div className="p-4 border-b border-white/[0.04] shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">Energy Arc Map</span>
+                  {(() => {
+                    const scenes = state.scriptSegmentation.scenes;
+                    const lowEnergyStreak = scenes.some((s, i) => i < scenes.length - 2 && s.energy_level <= 4 && scenes[i+1].energy_level <= 4 && scenes[i+2].energy_level <= 4);
+                    return lowEnergyStreak ? <span className="text-[8px] text-red-400 font-mono bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20" title="Viewer fatigue risk: 3+ consecutive low energy scenes">⚠ Fatigue Risk</span> : null;
+                  })()}
+                </div>
+                <div className="flex items-end gap-[2px] h-10 w-full relative">
+                  {state.scriptSegmentation.scenes.map((s, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 bg-slate-800 rounded-t-sm transition-all hover:bg-gold/50 cursor-pointer group"
+                      style={{ height: `${Math.max(10, (s.energy_level / 10) * 100)}%`, backgroundColor: state.selectedSceneIndex === i ? 'rgba(202,138,4,0.6)' : undefined }}
+                      onClick={() => selectScene(i)}
+                    >
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-5 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[8px] px-1.5 py-0.5 rounded font-mono pointer-events-none whitespace-nowrap">
+                        Scene {s.scene_number}: E{s.energy_level}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
               {state.scriptSegmentation.scenes.map((scene, idx) => {
                 const sel  = state.selectedSceneIndex === idx;
                 const done = state.completedScenes.some(c => c.scene_number === scene.scene_number);
@@ -739,6 +766,7 @@ export default function App() {
                   </button>
                 );
               })}
+              </div>
             </div>
 
             {/* ── Workspace ─────────────────────────────────────── */}
@@ -965,6 +993,15 @@ export default function App() {
                               <div className="text-[8px] text-slate-700 uppercase tracking-wider font-mono mb-0.5">Subtext</div>
                               <p className="text-slate-500 italic text-xs">"{scene.acting_blueprint.subtext}"</p>
                             </div>
+                            {scene.recommended_b_roll && (
+                              <div className="bg-emerald-950/20 border border-emerald-900/30 rounded p-2">
+                                <div className="text-[8px] text-emerald-600 uppercase tracking-wider font-mono mb-0.5 flex items-center gap-1">
+                                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                  Recommended B-Roll
+                                </div>
+                                <p className="text-emerald-400 text-[10px] leading-relaxed font-mono">{scene.recommended_b_roll}</p>
+                              </div>
+                            )}
                             <div>
                               <div className="text-[8px] text-slate-700 uppercase tracking-wider font-mono mb-1">Emphasis</div>
                               <div className="flex flex-wrap gap-1">

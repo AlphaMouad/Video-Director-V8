@@ -34,6 +34,7 @@ export default function App() {
 
   const [copied, setCopied]           = useState(false);
   const [apiKey, setApiKeyState]      = useState('');
+  const [isFreeTierApi, setIsFreeTierApi] = useState(false);
   const [isKeySet, setIsKeySet]       = useState(false);
   const [charDragOver, setCharDragOver]   = useState(false);
   const [scene1VisualLock, setScene1VisualLock] = useState<string | null>(null);
@@ -52,13 +53,20 @@ export default function App() {
 
   useEffect(() => {
     const stored = localStorage.getItem('gemini_api_key');
-    if (stored) { setApiKey(stored); setApiKeyState(stored); setIsKeySet(true); }
+    const storedFreeTier = localStorage.getItem('gemini_is_free_tier') === 'true';
+    if (stored) {
+      setApiKey(stored, storedFreeTier);
+      setApiKeyState(stored);
+      setIsFreeTierApi(storedFreeTier);
+      setIsKeySet(true);
+    }
   }, []);
 
   const handleSaveKey = () => {
     if (!apiKey.trim()) return;
-    setApiKey(apiKey);
+    setApiKey(apiKey, isFreeTierApi);
     localStorage.setItem('gemini_api_key', apiKey);
+    localStorage.setItem('gemini_is_free_tier', String(isFreeTierApi));
     setIsKeySet(true);
   };
 
@@ -406,6 +414,15 @@ export default function App() {
             placeholder="AIza..."
             className="w-full bg-black/60 border border-white/[0.08] rounded-xl px-4 py-3.5 text-white placeholder:text-slate-700 focus:border-gold/30 focus:outline-none font-mono text-sm tracking-wider transition-colors"
           />
+          <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFreeTierApi}
+              onChange={e => setIsFreeTierApi(e.target.checked)}
+              className="w-4 h-4 rounded border-white/[0.2] bg-black/60 text-gold focus:ring-gold/50 focus:ring-offset-0"
+            />
+            <span className="text-sm text-slate-400 font-mono">This is a Free Tier API Key</span>
+          </label>
           <button
             onClick={handleSaveKey}
             disabled={!apiKey.trim()}

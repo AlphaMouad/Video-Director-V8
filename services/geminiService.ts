@@ -319,11 +319,73 @@ Opening State (inherited from previous scene exit) → Building Action (scene ri
 // API Key management
 // ============================================================
 let userApiKey: string | null = null;
-export const setApiKey = (key: string) => { userApiKey = key; };
+let isFreeTierKey: boolean = false;
+export const setApiKey = (key: string, isFreeTier: boolean = false) => {
+  userApiKey = key;
+  isFreeTierKey = isFreeTier;
+};
 
 const getAI = () => {
   if (!userApiKey) throw new Error('API Key not set. Please provide your Google Gemini API Key.');
   return new GoogleGenAI({ apiKey: userApiKey });
+};
+
+// Global queue to enforce sequential requests for Free Tier
+let apiQueue = Promise.resolve();
+
+// Robust retry wrapper handling 429 Rate Limits and 503 Server Errors
+export const callGeminiWithRetry = async (params: any, context: string): Promise<any> => {
+  const ai = getAI();
+  const maxAttempts = isFreeTierKey ? 8 : 4;
+  const baseDelay = isFreeTierKey ? 15000 : 2000; // Free tier requires heavy spacing (15 RPM)
+
+  const executeCall = async () => {
+    let lastErr: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (isFreeTierKey && attempt === 1) {
+           // Mandatory spacing for free tier even on first attempt to prevent bursts
+           await new Promise(r => setTimeout(r, 2000));
+        }
+        const response = await ai.models.generateContent(params);
+        return response;
+      } catch (err: any) {
+        lastErr = err;
+        const status = err?.status || err?.response?.status || 500;
+        const isRateLimit = status === 429;
+        const isServerError = status >= 500;
+
+        if (!isRateLimit && !isServerError) {
+          throw err; // Don't retry client errors like 400 Bad Request
+        }
+
+        if (attempt < maxAttempts) {
+           const backoffMultiplier = isFreeTierKey ? attempt * 1.5 : Math.pow(2, attempt - 1);
+           const delay = baseDelay * backoffMultiplier;
+           console.warn(`[${context}] API Error (${status}). Retrying ${attempt}/${maxAttempts} in ${Math.round(delay/1000)}s...`);
+           await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+    throw new Error(`[${context}] Failed after ${maxAttempts} attempts. Last error: ${lastErr?.message || lastErr}`);
+  };
+
+  // If free tier, queue the request so multiple parallel calls (like Pass A + Phonemics) run sequentially
+  if (isFreeTierKey) {
+    return new Promise((resolve, reject) => {
+      apiQueue = apiQueue.then(async () => {
+        try {
+          const res = await executeCall();
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  } else {
+    // Paid tier can run in parallel
+    return executeCall();
+  }
 };
 
 const fileToBase64 = (file: File | Blob): Promise<string> =>
@@ -597,24 +659,15 @@ Return complete JSON matching exactly this structure:
 }
 `;
 
-  const ai = getAI();
-  let lastErr: any;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_TEXT_ELITE,
-        contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: videoFile.type, data: base64Data } }] }],
-        config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-      });
-      const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
-      const json = safeJsonParse(raw, 'analyzeFullVideo');
-      return json.referenceAnalysis?.character ? json.referenceAnalysis : json;
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
-    }
-  }
-  throw lastErr;
+  const response = await callGeminiWithRetry({
+    model: MODEL_TEXT_ELITE,
+    contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: videoFile.type, data: base64Data } }] }],
+    config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
+  }, 'analyzeFullVideo');
+
+  const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+  const json = safeJsonParse(raw, 'analyzeFullVideo');
+  return json.referenceAnalysis?.character ? json.referenceAnalysis : json;
 };
 
 // ============================================================
@@ -1053,23 +1106,14 @@ CONTENT LAWS:
 ✓ The full video narrative arc is coherent: no two consecutive scenes below 6/10 energy without a peak following; energy_arc_map accurately reflects all scene energy_levels
 `;
 
-  const ai = getAI();
-  let lastErr: any;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_TEXT_ELITE,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-      });
-      const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
-      return safeJsonParse(raw, 'segmentScript');
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
-    }
-  }
-  throw lastErr;
+  const response = await callGeminiWithRetry({
+    model: MODEL_TEXT_ELITE,
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
+  }, 'segmentScript');
+
+  const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+  return safeJsonParse(raw, 'segmentScript');
 };
 
 // ============================================================
@@ -1241,11 +1285,11 @@ export const extractCharacterIntelligence = async (
 }` }
   ];
   try {
-    const resp = await ai.models.generateContent({
+    const resp = await callGeminiWithRetry({
       model: MODEL_TEXT_ELITE,
       contents: [{ role: 'user', parts }],
       config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-    });
+    }, 'extractCharacterIntelligence');
     const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
     return safeJsonParse<any>(raw, 'CharacterIntelligence');
   } catch {
@@ -1351,11 +1395,11 @@ export const generateCharacterFrame = async (
   "presence_quality": "one sentence: the specific quality that makes this person compelling in 0.3 seconds"
 }` }
       ];
-      const resp = await ai.models.generateContent({
+      const resp = await callGeminiWithRetry({
         model: MODEL_TEXT_ELITE,
         contents: [{ role: 'user', parts: charParts }],
         config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-      });
+      }, 'generateCharacterFrame_PassA');
       const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
       return safeJsonParse<any>(raw, 'CharacterIntelligence');
     })(),
@@ -1380,11 +1424,11 @@ export const generateCharacterFrame = async (
   "background_zone": "what is behind and how much negative space on each side"
 }` }
       ];
-      const resp = await ai.models.generateContent({
+      const resp = await callGeminiWithRetry({
         model: MODEL_TEXT_ELITE,
         contents: [{ role: 'user', parts: poseParts }],
         config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-      });
+      }, 'generateCharacterFrame_PassB');
       const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
       return safeJsonParse<any>(raw, 'PoseIntelligence');
     })(),
@@ -1727,14 +1771,14 @@ ${prompt}`;
   ];
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGeminiWithRetry({
       model: MODEL_IMAGE_GEN,
       contents: [{ role: 'user', parts: synthParts }],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
       },
-    });
+    }, 'generateCharacterFrame_PassC');
     const rawBlob = extractImageFromResponse(response);
     if (rawBlob) {
       const blob2k = await upscaleTo2K(rawBlob);
@@ -3008,15 +3052,14 @@ Write to that standard. Six sections. Now.
     }))
   ];
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: {
       systemInstruction: VEO_ENGINEER_SYSTEM_INSTRUCTION,
       thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
     }
-  });
+  }, 'engineerScenePrompt');
 
   const veoText = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
   if (!veoText.trim()) throw new Error('engineerScenePrompt: model returned empty response. Please retry.');
@@ -3095,12 +3138,11 @@ Output the complete refined 6-section VEO prompt. All six sections must be prese
 No preamble. No explanation of your changes. Just the refined prompt.
 `;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'refineScenePrompt');
 
   const refined = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
   return refined.trim() || originalPrompt;
@@ -3150,12 +3192,11 @@ Return ONLY valid JSON:
   "pause_map": ["1.5s after 'gravityWord'", "0.4s after 'sentence-end-word'"]
 }`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'reAnnotateScript');
 
   const raw = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3242,11 +3283,11 @@ PARAGRAPH 6 — FORENSIC IDENTITY STATEMENT + ENVIRONMENT: Three sentences estab
 
 Write PART 1 (checklist) followed immediately by PART 2 (prose). Start PART 1 with "VISUAL ANCHOR CHECKLIST" on the first line. Start PART 2 with "FORENSIC IDENTITY PROSE:" on its own line. No other preamble.` });
 
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } },
-  });
+  }, 'buildCharacterPhysicalLock');
 
   const text = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3279,12 +3320,11 @@ PARAGRAPH 4 — THE OPENING AND CLOSING: Describe exactly what the mouth does in
 
 Write all four paragraphs now. No preamble. No section headers. Prose only. Each paragraph 2-4 sentences.`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'computePhonemics');
 
   const text = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3473,11 +3513,11 @@ SLOT-FILLING RULES:
     parts.push({ inlineData: { data: rawB64, mimeType: 'image/jpeg' } });
   }
 
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'distillVeoPrompt');
 
   const distilled = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3579,12 +3619,11 @@ The complete improved 7-section VEO prompt with ALL five passes applied simultan
 
 Start immediately with "BINDING CONSTRAINTS:" — CHARACTER line first, then STUDIO AUDIO MANDATE. No preamble. No summary of changes. Just the improved prompt.`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'critiqueVeoPrompt');
 
   const improved = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3822,12 +3861,11 @@ TASK: Extract 8 pieces of intelligence. Return ONLY valid JSON:
   "scene_micro_arc": "Three sentences — one per beat — describing the CALM SOVEREIGNTY arc of this scene. Use psychological-cause language only. No clinical terms. No measurements. No urgency language: (1) OPENING STATE: the specific quality of inhabited calm THE PRESENTER carries into this scene — describe as a felt physical state of someone who has completely stopped bracing for anything; whose body has let go; who is simply here and giving something real. What is the biological texture of this calm in the face and chest? (2) GRAVITY PEAK: the specific quality of DEEPENING calm at the gravity center word '${gravityCenterWord}' — not an energy peak but a QUIETING; what happens to the jaw, the breath, the eye quality as the voice drops to its most deliberate and the body becomes more still; (3) CLOSING STATE: the specific quality of the face and body in the inhabited silence after the final word — the three-quality state: the echo of what was just given, the visible private knowledge of more, the forward directionality of someone who has placed something real on the table and remains with it."
 }`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } },
-  });
+  }, 'extractSceneIntelligence');
 
   const raw = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text

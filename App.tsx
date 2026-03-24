@@ -63,9 +63,11 @@ export default function App() {
   };
 
   const handleError = (err: any) => {
+    // Log the full error to console for easier debugging of "unexpected" issues
+    console.error("AL-NOKHBA ERROR DETECTED:", err);
     setState(s => ({
       ...s,
-      error: err.message || 'An unexpected error occurred',
+      error: err?.message ? `Error: ${err.message}` : typeof err === 'string' ? `Error: ${err}` : 'An unexpected error occurred. Check browser console.',
       processingStatus: '',
       sceneProcessing: s.sceneProcessing === 'engineering' ? 'idle' : s.sceneProcessing,
     }));

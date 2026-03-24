@@ -34,6 +34,7 @@ export default function App() {
 
   const [copied, setCopied]           = useState(false);
   const [apiKey, setApiKeyState]      = useState('');
+  const [isFreeTierApi, setIsFreeTierApi] = useState(false);
   const [isKeySet, setIsKeySet]       = useState(false);
   const [charDragOver, setCharDragOver]   = useState(false);
   const [scene1VisualLock, setScene1VisualLock] = useState<string | null>(null);
@@ -52,20 +53,29 @@ export default function App() {
 
   useEffect(() => {
     const stored = localStorage.getItem('gemini_api_key');
-    if (stored) { setApiKey(stored); setApiKeyState(stored); setIsKeySet(true); }
+    const storedFreeTier = localStorage.getItem('gemini_is_free_tier') === 'true';
+    if (stored) {
+      setApiKey(stored, storedFreeTier);
+      setApiKeyState(stored);
+      setIsFreeTierApi(storedFreeTier);
+      setIsKeySet(true);
+    }
   }, []);
 
   const handleSaveKey = () => {
     if (!apiKey.trim()) return;
-    setApiKey(apiKey);
+    setApiKey(apiKey, isFreeTierApi);
     localStorage.setItem('gemini_api_key', apiKey);
+    localStorage.setItem('gemini_is_free_tier', String(isFreeTierApi));
     setIsKeySet(true);
   };
 
   const handleError = (err: any) => {
+    // Log the full error to console for easier debugging of "unexpected" issues
+    console.error("AL-NOKHBA ERROR DETECTED:", err);
     setState(s => ({
       ...s,
-      error: err.message || 'An unexpected error occurred',
+      error: err?.message ? `Error: ${err.message}` : typeof err === 'string' ? `Error: ${err}` : 'An unexpected error occurred. Check browser console.',
       processingStatus: '',
       sceneProcessing: s.sceneProcessing === 'engineering' ? 'idle' : s.sceneProcessing,
     }));
@@ -404,6 +414,15 @@ export default function App() {
             placeholder="AIza..."
             className="w-full bg-black/60 border border-white/[0.08] rounded-xl px-4 py-3.5 text-white placeholder:text-slate-700 focus:border-gold/30 focus:outline-none font-mono text-sm tracking-wider transition-colors"
           />
+          <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFreeTierApi}
+              onChange={e => setIsFreeTierApi(e.target.checked)}
+              className="w-4 h-4 rounded border-white/[0.2] bg-black/60 text-gold focus:ring-gold/50 focus:ring-offset-0"
+            />
+            <span className="text-sm text-slate-400 font-mono">This is a Free Tier API Key</span>
+          </label>
           <button
             onClick={handleSaveKey}
             disabled={!apiKey.trim()}
@@ -703,7 +722,34 @@ export default function App() {
           <div className="flex-1 flex overflow-hidden">
 
             {/* ── Sidebar ───────────────────────────────────────── */}
-            <div className="w-[380px] border-r border-white/[0.04] overflow-y-auto bg-[#010510] p-3 space-y-1.5 shrink-0 custom-scrollbar">
+            <div className="w-[380px] border-r border-white/[0.04] flex flex-col bg-[#010510] shrink-0 overflow-hidden">
+              {/* Dynamic Fatigue Mapping UI */}
+              <div className="p-4 border-b border-white/[0.04] shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">Energy Arc Map</span>
+                  {(() => {
+                    const scenes = state.scriptSegmentation.scenes;
+                    const lowEnergyStreak = scenes.some((s, i) => i < scenes.length - 2 && s.energy_level <= 4 && scenes[i+1].energy_level <= 4 && scenes[i+2].energy_level <= 4);
+                    return lowEnergyStreak ? <span className="text-[8px] text-red-400 font-mono bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20" title="Viewer fatigue risk: 3+ consecutive low energy scenes">⚠ Fatigue Risk</span> : null;
+                  })()}
+                </div>
+                <div className="flex items-end gap-[2px] h-10 w-full relative">
+                  {state.scriptSegmentation.scenes.map((s, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 bg-slate-800 rounded-t-sm transition-all hover:bg-gold/50 cursor-pointer group"
+                      style={{ height: `${Math.max(10, (s.energy_level / 10) * 100)}%`, backgroundColor: state.selectedSceneIndex === i ? 'rgba(202,138,4,0.6)' : undefined }}
+                      onClick={() => selectScene(i)}
+                    >
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-5 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[8px] px-1.5 py-0.5 rounded font-mono pointer-events-none whitespace-nowrap">
+                        Scene {s.scene_number}: E{s.energy_level}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
               {state.scriptSegmentation.scenes.map((scene, idx) => {
                 const sel  = state.selectedSceneIndex === idx;
                 const done = state.completedScenes.some(c => c.scene_number === scene.scene_number);
@@ -739,6 +785,7 @@ export default function App() {
                   </button>
                 );
               })}
+              </div>
             </div>
 
             {/* ── Workspace ─────────────────────────────────────── */}
@@ -965,6 +1012,15 @@ export default function App() {
                               <div className="text-[8px] text-slate-700 uppercase tracking-wider font-mono mb-0.5">Subtext</div>
                               <p className="text-slate-500 italic text-xs">"{scene.acting_blueprint.subtext}"</p>
                             </div>
+                            {scene.recommended_b_roll && (
+                              <div className="bg-emerald-950/20 border border-emerald-900/30 rounded p-2">
+                                <div className="text-[8px] text-emerald-600 uppercase tracking-wider font-mono mb-0.5 flex items-center gap-1">
+                                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                  Recommended B-Roll
+                                </div>
+                                <p className="text-emerald-400 text-[10px] leading-relaxed font-mono">{scene.recommended_b_roll}</p>
+                              </div>
+                            )}
                             <div>
                               <div className="text-[8px] text-slate-700 uppercase tracking-wider font-mono mb-1">Emphasis</div>
                               <div className="flex flex-wrap gap-1">

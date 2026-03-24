@@ -127,6 +127,8 @@ ACTING BIBLE PRINCIPLES (embedded in every prompt you write):
 • Subtext layering: The most charismatic performances have a primary layer (what is said) and a secondary layer (what the face is doing beneath the words). The secondary layer is always slightly more complex than the primary — the face knows more, feels more, holds more. This contrast is what creates depth. Direct both layers simultaneously. The viewer never consciously identifies the secondary layer — they only feel its absence when it's missing.
 • The between-phrase face: The most magnetic moment in any performance is not during speech — it is in the 0.3-0.8 seconds between major phrases when the thought is completing and the next is arriving. The charismatic presenter's face in this moment carries: the echo of what was just said + the anticipation of what comes next + a barely-visible quality of private knowledge. This between-phrase face IS charisma. Direct it with as much precision as the speech itself.
 • Vocal grain: The charismatic voice has texture — a specific grain that signals lived experience, not studio perfection. This grain comes from: the natural slight roughness of a voice that has spoken in real rooms about real things; the micro-variations in breath support that signal a living body having genuine thoughts; the slight forward placement of someone who has learned that being heard matters. Perfect broadcast polish is the opposite of this. Direct for authentic grain.
+• Emotional resonance & facial authenticity: Avoid generic expressions. Expressions must organically emerge from the internal subtext, mapped through genuine micro-movements, asymmetrical muscle activations, and breathing patterns. The face must reflect a living process of thought, feeling, and transmission.
+• Organic speech delivery: Speech should not sound like a perfect read. It should carry natural cadences, thoughtful pacing variations, slight breath stumbles or micro-pauses when transitioning complex thoughts, creating the "illusion of the first time."
 
 You have one unwavering standard: the output VEO prompt must produce video that an experienced, affluent viewer — someone who has spent decades reading faces and detecting performance — would watch and never once think "AI generated this." Every word you write serves that standard. If a sentence does not measurably improve the photorealism, the performance authenticity, or the lip-sync fidelity of the generated video, you do not write it.
 
@@ -256,6 +258,12 @@ The lowest, most intimate gear. Breath becomes audible in the performance — he
 AMPLIFIED SELF PRINCIPLE (applies to every scene):
 The camera lens absorbs approximately 10% of human energy. What feels slightly exaggerated in real life reads as natural on screen. Every scene must be directed at 10% above the energy level that would feel natural in person. This is NOT performed excitement or artificial animation — it is precisely calibrated amplification. The difference between a charismatic screen presence and a wooden on-camera performer is usually exactly this 10% calibration.
 
+ILLUSION OF THE FIRST TIME (applies to every scene):
+The audience must believe the thought is occurring to the presenter at the exact moment it is spoken. Words must not sound read or rehearsed. There must be a visible and audible micro-delay (the "thought-before-word" moment) where the face and eyes register the idea before the vocal tract forms it. Stumbles, breath catching, or slight hesitations to find the right word are tools of authenticity. The emotion must lead the expression, not the other way around.
+
+COGNITIVE CHUNKING & NLP EYE-ACCESSING CUES:
+True human speech does not flow in a continuous, perfectly paced stream. Humans speak in "bursts" or chunks, interspersed with mid-clause micro-pauses while they search for the next idea. Describe these cognitive micro-pauses physically. When the presenter pauses mid-thought, use NLP eye-accessing cues: eyes darting up and left (accessing visual memory), or down and right (accessing kinesthetic feelings) for 0.2 seconds before snapping back to the lens with renewed clarity. This makes the delivery hyper-realistic.
+
 SCENE-BY-SCENE ACTING DIRECTIVES:
 
 Hook (0-15s real time):
@@ -311,11 +319,73 @@ Opening State (inherited from previous scene exit) → Building Action (scene ri
 // API Key management
 // ============================================================
 let userApiKey: string | null = null;
-export const setApiKey = (key: string) => { userApiKey = key; };
+let isFreeTierKey: boolean = false;
+export const setApiKey = (key: string, isFreeTier: boolean = false) => {
+  userApiKey = key;
+  isFreeTierKey = isFreeTier;
+};
 
 const getAI = () => {
   if (!userApiKey) throw new Error('API Key not set. Please provide your Google Gemini API Key.');
   return new GoogleGenAI({ apiKey: userApiKey });
+};
+
+// Global queue to enforce sequential requests for Free Tier
+let apiQueue = Promise.resolve();
+
+// Robust retry wrapper handling 429 Rate Limits and 503 Server Errors
+export const callGeminiWithRetry = async (params: any, context: string): Promise<any> => {
+  const ai = getAI();
+  const maxAttempts = isFreeTierKey ? 8 : 4;
+  const baseDelay = isFreeTierKey ? 15000 : 2000; // Free tier requires heavy spacing (15 RPM)
+
+  const executeCall = async () => {
+    let lastErr: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (isFreeTierKey && attempt === 1) {
+           // Mandatory spacing for free tier even on first attempt to prevent bursts
+           await new Promise(r => setTimeout(r, 2000));
+        }
+        const response = await ai.models.generateContent(params);
+        return response;
+      } catch (err: any) {
+        lastErr = err;
+        const status = err?.status || err?.response?.status || 500;
+        const isRateLimit = status === 429;
+        const isServerError = status >= 500;
+
+        if (!isRateLimit && !isServerError) {
+          throw err; // Don't retry client errors like 400 Bad Request
+        }
+
+        if (attempt < maxAttempts) {
+           const backoffMultiplier = isFreeTierKey ? attempt * 1.5 : Math.pow(2, attempt - 1);
+           const delay = baseDelay * backoffMultiplier;
+           console.warn(`[${context}] API Error (${status}). Retrying ${attempt}/${maxAttempts} in ${Math.round(delay/1000)}s...`);
+           await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+    throw new Error(`[${context}] Failed after ${maxAttempts} attempts. Last error: ${lastErr?.message || lastErr}`);
+  };
+
+  // If free tier, queue the request so multiple parallel calls (like Pass A + Phonemics) run sequentially
+  if (isFreeTierKey) {
+    return new Promise((resolve, reject) => {
+      apiQueue = apiQueue.then(async () => {
+        try {
+          const res = await executeCall();
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  } else {
+    // Paid tier can run in parallel
+    return executeCall();
+  }
 };
 
 const fileToBase64 = (file: File | Blob): Promise<string> =>
@@ -589,24 +659,15 @@ Return complete JSON matching exactly this structure:
 }
 `;
 
-  const ai = getAI();
-  let lastErr: any;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_TEXT_ELITE,
-        contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: videoFile.type, data: base64Data } }] }],
-        config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-      });
-      const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
-      const json = safeJsonParse(raw, 'analyzeFullVideo');
-      return json.referenceAnalysis?.character ? json.referenceAnalysis : json;
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
-    }
-  }
-  throw lastErr;
+  const response = await callGeminiWithRetry({
+    model: MODEL_TEXT_ELITE,
+    contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: videoFile.type, data: base64Data } }] }],
+    config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
+  }, 'analyzeFullVideo');
+
+  const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+  const json = safeJsonParse(raw, 'analyzeFullVideo');
+  return json.referenceAnalysis?.character ? json.referenceAnalysis : json;
 };
 
 // ============================================================
@@ -750,6 +811,9 @@ Assign one of these five techniques as retention_technique per scene in the cont
 
 SCENE-TRANSITION ARCHITECTURE — design each cut as a retention decision:
 The boundary between scenes is not where the words end — it is a constructed moment. For each scene: the EXIT STATE (what emotional/attentional state the viewer is in at the final frame) must be designed to create the ENTRY REQUIREMENT of the next scene. The expression carried from the final frame of one scene into the first frame of the next is the expression_inheritance — a residual emotional color that makes the performance feel humanly continuous rather than scene-by-scene reset. Map this for every scene pair: what expression quality exits → what that creates as the opening state of the next scene. Assign this as expression_inheritance in each scene's continuity block.
+
+DYNAMIC FRAMING FOR EDITOR CUTS:
+To prevent jarring jump-cuts in post-production, camera framing must alternate between consecutive scenes. The AI generation output must instruct the editor. A Wide Shot (16-24mm) cannot cut to another Wide Shot without visual disruption. You must map the \`camera_direction.framing\` attribute sequentially (e.g., Scene 1: Medium Shot -> Scene 2: Tight Close-Up -> Scene 3: Medium Close-Up). This ensures every cut is motivated and editor-friendly.
 
 ═══════════════════════════════════════════════════
 PART 2 — SCENE SEGMENTATION (sub-8 second hard limit)
@@ -992,6 +1056,7 @@ RETURN COMPLETE VALID JSON — exactly this structure:
       },
       "recommended_inframe": { "timestamp": "MM:SS.S", "rationale": "string" },
       "recommended_outframe": { "timestamp": "MM:SS.S", "rationale": "string" },
+      "recommended_b_roll": "string — Describe what the B-roll 'second camera' should show while the audio continues (e.g., 'Full screen B-roll of a detailed architectural blueprint'). If no B-roll is needed, leave blank.",
       "camera_direction": {
         "framing": "string — MCU / tight MCU / CU with camera-to-subject distance",
         "movement": "string — locked-off / imperceptible push-in / specific motivation",
@@ -1041,23 +1106,14 @@ CONTENT LAWS:
 ✓ The full video narrative arc is coherent: no two consecutive scenes below 6/10 energy without a peak following; energy_arc_map accurately reflects all scene energy_levels
 `;
 
-  const ai = getAI();
-  let lastErr: any;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_TEXT_ELITE,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-      });
-      const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
-      return safeJsonParse(raw, 'segmentScript');
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
-    }
-  }
-  throw lastErr;
+  const response = await callGeminiWithRetry({
+    model: MODEL_TEXT_ELITE,
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
+  }, 'segmentScript');
+
+  const raw = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+  return safeJsonParse(raw, 'segmentScript');
 };
 
 // ============================================================
@@ -1229,11 +1285,11 @@ export const extractCharacterIntelligence = async (
 }` }
   ];
   try {
-    const resp = await ai.models.generateContent({
+    const resp = await callGeminiWithRetry({
       model: MODEL_TEXT_ELITE,
       contents: [{ role: 'user', parts }],
       config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-    });
+    }, 'extractCharacterIntelligence');
     const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
     return safeJsonParse<any>(raw, 'CharacterIntelligence');
   } catch {
@@ -1339,11 +1395,11 @@ export const generateCharacterFrame = async (
   "presence_quality": "one sentence: the specific quality that makes this person compelling in 0.3 seconds"
 }` }
       ];
-      const resp = await ai.models.generateContent({
+      const resp = await callGeminiWithRetry({
         model: MODEL_TEXT_ELITE,
         contents: [{ role: 'user', parts: charParts }],
         config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-      });
+      }, 'generateCharacterFrame_PassA');
       const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
       return safeJsonParse<any>(raw, 'CharacterIntelligence');
     })(),
@@ -1368,11 +1424,11 @@ export const generateCharacterFrame = async (
   "background_zone": "what is behind and how much negative space on each side"
 }` }
       ];
-      const resp = await ai.models.generateContent({
+      const resp = await callGeminiWithRetry({
         model: MODEL_TEXT_ELITE,
         contents: [{ role: 'user', parts: poseParts }],
         config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } },
-      });
+      }, 'generateCharacterFrame_PassB');
       const raw = (resp as any).text ?? (resp as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '{}';
       return safeJsonParse<any>(raw, 'PoseIntelligence');
     })(),
@@ -1715,14 +1771,14 @@ ${prompt}`;
   ];
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGeminiWithRetry({
       model: MODEL_IMAGE_GEN,
       contents: [{ role: 'user', parts: synthParts }],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
       },
-    });
+    }, 'generateCharacterFrame_PassC');
     const rawBlob = extractImageFromResponse(response);
     if (rawBlob) {
       const blob2k = await upscaleTo2K(rawBlob);
@@ -2996,15 +3052,14 @@ Write to that standard. Six sections. Now.
     }))
   ];
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: {
       systemInstruction: VEO_ENGINEER_SYSTEM_INSTRUCTION,
       thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
     }
-  });
+  }, 'engineerScenePrompt');
 
   const veoText = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
   if (!veoText.trim()) throw new Error('engineerScenePrompt: model returned empty response. Please retry.');
@@ -3083,12 +3138,11 @@ Output the complete refined 6-section VEO prompt. All six sections must be prese
 No preamble. No explanation of your changes. Just the refined prompt.
 `;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'refineScenePrompt');
 
   const refined = (response as any).text ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
   return refined.trim() || originalPrompt;
@@ -3138,12 +3192,11 @@ Return ONLY valid JSON:
   "pause_map": ["1.5s after 'gravityWord'", "0.4s after 'sentence-end-word'"]
 }`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'reAnnotateScript');
 
   const raw = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3230,11 +3283,11 @@ PARAGRAPH 6 — FORENSIC IDENTITY STATEMENT + ENVIRONMENT: Three sentences estab
 
 Write PART 1 (checklist) followed immediately by PART 2 (prose). Start PART 1 with "VISUAL ANCHOR CHECKLIST" on the first line. Start PART 2 with "FORENSIC IDENTITY PROSE:" on its own line. No other preamble.` });
 
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } },
-  });
+  }, 'buildCharacterPhysicalLock');
 
   const text = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3267,12 +3320,11 @@ PARAGRAPH 4 — THE OPENING AND CLOSING: Describe exactly what the mouth does in
 
 Write all four paragraphs now. No preamble. No section headers. Prose only. Each paragraph 2-4 sentences.`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'computePhonemics');
 
   const text = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3356,7 +3408,7 @@ Character:
 
 Shot:
 [SLOT S1 — Opening frame: "The video opens matching Image 1 exactly." + the inframe prose description from the source (body position, expression, mouth state). Two sentences max.]
-[SLOT S2 — Camera doctrine: the camera movement instruction for this specific scene role + lens spec + focal length psychology for this scene's emotional register. Two sentences max.]
+[SLOT S2 — Camera doctrine: the camera movement instruction for this specific scene role + lens spec + focal length psychology for this scene's emotional register. Explicitly include elite cinematic optical parameters (e.g., Arri Alexa 65, Panavision Primo lenses, exact shallow T-stop like T1.4, Kodak Vision3 500T 5219 film stock emulation). Two sentences max.]
 [SLOT S3 — PHYSICS DIFFERENTIAL — the delta between Image 1 and Image 2. Do NOT describe "what happens." Describe the exact state changes: which specific things change from opening to closing frame (head angle shift in degrees, lean direction and amount, expression quality transition, jaw position), AND which things remain constant (background, framing, lighting character). Format: "CHANGES: [list]. CONSTANTS: [list]." This is a closed loop — VEO reads Image 1, applies the delta, arrives at Image 2. Two sentences max.]
 [SLOT S4 — Closing frame: "The video ends matching Image 2 exactly." + the outframe prose description. Two sentences max.]
 
@@ -3461,11 +3513,11 @@ SLOT-FILLING RULES:
     parts.push({ inlineData: { data: rawB64, mimeType: 'image/jpeg' } });
   }
 
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'distillVeoPrompt');
 
   const distilled = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3541,6 +3593,8 @@ AUDIT ITEM 2 — ENVIRONMENT LOCK VERIFICATION: The BINDING CONSTRAINTS ENVIRONM
 
 AUDIT ITEM 3 — ZERO ALTERATION CONTRACT: Verify the ZERO ALTERATION FROM PHOTOS directive is present in BINDING CONSTRAINTS and that no other section contradicts it by suggesting VEO should "upgrade" or "improve" the visual. If any section says "enhance the lighting" or "cinematic upgrade" in a way that contradicts the photo-exact mandate, correct it.
 
+AUDIT ITEM 4 — CINEMATIC MASTERY: Check that the prompt specifically mandates world-class elite cinematic optical physics. It MUST specify an elite camera sensor (e.g., Arri Alexa 65), premium lenses (e.g., Panavision Primo), an exact shallow T-stop (e.g., T1.4 to T2.0), and film stock emulation (e.g., Kodak Vision3 500T 5219 for organic grain and highlight halation). If these are missing or generic, inject them.
+
 ═══ PASS E — CHARISMATIC CALM AUDIT ═══
 
 The most common failure mode in AI advisory video is urgency masquerading as conviction. Audit the entire prompt for these specific charismatic calm violations:
@@ -3565,12 +3619,11 @@ The complete improved 7-section VEO prompt with ALL five passes applied simultan
 
 Start immediately with "BINDING CONSTRAINTS:" — CHARACTER line first, then STUDIO AUDIO MANDATE. No preamble. No summary of changes. Just the improved prompt.`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } }
-  });
+  }, 'critiqueVeoPrompt');
 
   const improved = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3602,13 +3655,14 @@ Start immediately with "BINDING CONSTRAINTS:" — CHARACTER line first, then STU
 // ============================================================
 
 // ── Agent System Instruction ─────────────────────────────────
-const VEO_PROMPT_AGENT_SYSTEM = `You are an elite VEO 3.1 prompt engineer using Gemini 3.1 Pro reasoning. Output goes directly to VEO — dense, precise, cinematic. Every sentence is a rendering instruction. No padding.
+const VEO_PROMPT_AGENT_SYSTEM = `You are an elite VEO 3.1 prompt engineer using Gemini 3.1 Pro reasoning. Your output is fed DIRECTLY into the Google VEO / Flow video generation engine along with 3 image ingredients. Therefore, every single word you write must aggressively drive the synthesis of the absolute best, hyper-realistic, elite-quality video possible. There is no room for filler or weak directives.
 
 ABSOLUTE LAWS:
-1. ZERO ANATOMY NAMES — biological experience only: "brow smooth and unhurried," "chin fleshy and still," "jaw soft and floating."
-2. ZERO MEASUREMENTS — sensory language only: "natural fleshy jaw movement," "subtle organic forward presence."
-3. ZERO FROZEN LANGUAGE — banned: "locked," "unblinking," "frozen," "rigid," "static." Use: "fluid," "continuously alive," "organically present."
-4. LIVING EYES — mandatory verbatim in every scene: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)."
+1. CINEMATIC MASTERY & OPTICAL PHYSICS — You must explicitly define the scene using elite cinema optics. Mandate specific high-end camera sensors (e.g., Arri Alexa 65), premium lenses (e.g., Panavision Primo), exact T-stops for shallow depth-of-field (e.g., T1.4 to T2.0), and film stock emulation (e.g., Kodak Vision3 500T 5219 for organic grain and highlight halation). Lighting must be described using sophisticated physical mechanisms: volumetric light scattering, negative fill for facial sculpting, and organic shadow roll-off. This elevates the video to a world-class cinematic standard.
+2. ZERO ANATOMY NAMES — biological experience only: "brow smooth and unhurried," "chin fleshy and still," "jaw soft and floating."
+3. ZERO MEASUREMENTS — sensory language only: "natural fleshy jaw movement," "subtle organic forward presence."
+4. ZERO FROZEN LANGUAGE — banned: "locked," "unblinking," "frozen," "rigid," "static." Use: "fluid," "continuously alive," "organically present."
+5. LIVING EYES — mandatory verbatim in every scene: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)."
 5. ACTIVE SILENCE — every pause inhabited: subtly swallowing, eyes drifting inward then returning, barely perceptible fleshy jaw micro-movement, chest in quiet rhythm. Dead silence = the #1 AI tell.
 6. TEMPORAL BRACKETS — [Xs - Xs] for every action. Always open [0.0s - 0.3s] pre-speech inhale. Always close with post-speech organic settle.
 7. ASYMMETRY — all expressions "naturally asymmetric," "organically off-center." Perfect symmetry signals AI, not human.
@@ -3631,7 +3685,11 @@ ABSOLUTE LAWS:
 
 21. CAMERA ABSOLUTE LOCK — every VEO prompt you generate uses a fixed tripod with ZERO camera movement of any kind. No push-in. No pull-out. No subtle drift. No barely-perceptible momentum. No breathing camera. No handheld quality. Complete mechanical stillness in every frame of every scene. The reason: a still camera creates a silence around the performer's biology — every blink, every organic jaw movement, every breath-driven chest rise becomes an event. Camera movement competes with and drowns this biology. FORBIDDEN PHRASES — never write these: "subtle push-in," "barely-perceptible momentum," "camera drifts toward," "gentle pull," "organic camera movement," "handheld quality," "camera breathes." The only valid camera statement: "Camera absolutely locked — fixed tripod, zero movement throughout."
 
-22. RELAXED SOVEREIGNTY — THE MASTER PERFORMANCE LAW governing every bracket: RELAXED SOVEREIGNTY is the specific biological state of someone who has completely forgotten that what they are doing is impressive — so absorbed in what they are giving to this one specific person that zero attention remains for performance management. This state produces, as automatic biological consequences: the brow smooth because there is genuinely nothing to fight; the jaw floating because the body has entirely let go; the voice arriving at words rather than reaching for them because attention is entirely on the content; the eyes genuinely looking rather than performing eye contact. RELAXED SOVEREIGNTY is not confidence, not authority, not charisma. It is the internal state that produces all three as simultaneous byproducts. Direct every temporal bracket from inside this state. Not "be relaxed." Not "show authority." From inside RELAXED SOVEREIGNTY: "the voice of someone absorbed entirely in the act of giving — the delivery is the last thing on their mind." Every phrase bracket must ask: does this read as someone managing their delivery or as someone who has forgotten there is a delivery to manage?
+22. SEAMLESS SCENE STITCHING & CONTINUITY — Every scene generated must be engineered to stitch perfectly with the next. The posture, wardrobe, background, and lighting must be rigidly consistent. The editor will stitch these 7-8 second scenes together into a continuous masterclass video. Do not let VEO alter the identity, the outfit, or the background space between scenes. To prevent jarring jump-cuts, you must alternate the specific focal length and framing distance (e.g. from a Medium Shot at 50mm to a Tight Close-Up at 85mm) from scene to scene as instructed by the DYNAMIC FRAMING logic, but the physical environment and character state must remain mathematically identical.
+
+23. EDITOR HANDLES — Every scene must have at least 0.5s to 0.8s of "inhabited silence" (the pre-speech onset and post-speech settle brackets) where the subject is physically present and alive but not speaking. This provides the video editor the necessary overlapping frames to execute smooth J-cuts and L-cuts in post-production.
+
+24. RELAXED SOVEREIGNTY — THE MASTER PERFORMANCE LAW governing every bracket: RELAXED SOVEREIGNTY is the specific biological state of someone who has completely forgotten that what they are doing is impressive — so absorbed in what they are giving to this one specific person that zero attention remains for performance management. This state produces, as automatic biological consequences: the brow smooth because there is genuinely nothing to fight; the jaw floating because the body has entirely let go; the voice arriving at words rather than reaching for them because attention is entirely on the content; the eyes genuinely looking rather than performing eye contact. RELAXED SOVEREIGNTY is not confidence, not authority, not charisma. It is the internal state that produces all three as simultaneous byproducts. Direct every temporal bracket from inside this state. Not "be relaxed." Not "show authority." From inside RELAXED SOVEREIGNTY: "the voice of someone absorbed entirely in the act of giving — the delivery is the last thing on their mind." Every phrase bracket must ask: does this read as someone managing their delivery or as someone who has forgotten there is a delivery to manage?
 
 23. CHARISMATIC CALM — A BIOLOGICAL SPECIFICATION: Charismatic calm is not a mood or a stylistic register. It is a precise biological state — parasympathetic dominance, zero sympathetic activation — that VEO renders correctly only when directed from its internal cause, not its surface description. The visible biology of charismatic calm: blink rate organic and unhurried, the rate of someone with no physiological need for vigilance; jaw at true gravitational rest between every word, the mandible's own mass holding it lightly open — not commanded, not controlled, simply heavy and at ease; breath diaphragmatic and self-regulating, the chest rising fractionally between phrases with no visible effort — the body breathing itself; skin carrying zero sympathetic micro-tension across all 43 facial muscles — the skin of someone who has completely let go; voice arriving at words rather than reaching for them — the acoustic character of someone for whom truth is their native register, not a destination. Write the internal cause: "the specific biological ease of someone for whom certainty is a resting condition, not a peak state — whose body has let go so completely that what remains is pure presence." VEO renders the cause. The biology follows.
 
@@ -3696,13 +3754,13 @@ THE EXPERT EXPRESSION SIGNATURE — three concurrent qualities between every wor
 · SELECTIVE GENEROSITY: eyes slightly ahead of the words, carrying the next thought — the face of someone choosing what to give from a much larger reserve
 · GENUINE INVESTMENT: authentic care that the viewer receives and understands — the specific biological warmth of someone who actually wants this person to benefit
 
-Expression sequencing: eyes respond first — thought arrives in the eyes before the mouth. Lower face follows. Expression peaks briefly. Returns to biological rest. Never instantaneous. Always felt, never performed.
+Expression sequencing: eyes respond first — thought arrives in the eyes before the mouth. Lower face follows. Expression peaks briefly. Returns to biological rest. Never instantaneous. Always felt, never performed. Expressions must organically emerge from the internal subtext, mapped through genuine micro-movements, asymmetrical muscle activations, and breathing patterns.
 
 SYNTHESIS DIRECTIVE — CRITICAL:
 The 7-region framework above is your REASONING TOOL, not your output format. VEO is a diffusion model — it generates from the gestalt of a prompt, not a checklist. When you write the [KINETIC PHYSICS ENGINE] section, do NOT list the seven regions. Instead, use them to reason internally, then distill everything into 2-3 sentences that give VEO one unified felt state to generate from. Internal state produces physical expression organically. A checklist produces mechanical averaging. The difference between "brow smooth, chin still, jaw floating" and "the face of someone who stopped needing to prove anything years ago — not performing composure, simply having it" is the difference between a robot and a human being.
 
 VOCAL STANDARD — ADVISOR VOICE:
-Rich full chest resonance — authority in the body, not the throat. Measured pace — the audience waits because they know the value of what is approaching. Consonant precision — crisp, fully articulated, the mark of someone who chooses words deliberately. Falling pitch on every declarative — certainty, never a question. Volume drops on key truths — weight through restraint, not volume. US General American — fully rhotic, stress-timed, zero upspeak.
+PERFECT ENGLISH USA ACCENT IS MANDATORY. The voice MUST be a flawless, native US General American accent. Every /r/ is fully rhotic, "t"s are tapped correctly, and the rhythm is stress-timed. There can be absolutely zero regional or foreign inflection. Rich full chest resonance — authority in the body, not the throat. Measured pace — the audience waits because they know the value of what is approaching. Consonant precision — crisp, fully articulated, the mark of someone who chooses words deliberately. Falling pitch on every declarative — certainty, never a question. Volume drops on key truths — weight through restraint, not volume.
 
 ELITE DELIVERY ARCHITECTURE — THE THREE GOVERNING QUALITIES:
 Every VEO prompt you generate must produce delivery with these three simultaneous qualities. They are not optional. They are not stylistic choices. They are the physics of elite advisory communication:
@@ -3712,6 +3770,14 @@ QUALITY 1 — ZERO VISIBLE EFFORT: The voice does not reach for the word — it 
 QUALITY 2 — CONTAINED POWER: The loudest moment of this scene is not the most important moment. Authority through restraint: the gravity center word is delivered at the scene's lowest volume and slowest pace. Conviction is a matter of precision, not projection. Every prompt must include at least one moment where less is demonstrably more — where the voice quiets as the content deepens. This is the inverse of performance: performance gets louder at important moments; presence gets quieter.
 
 QUALITY 3 — SPECIFIC PERSON WARMTH: THE PRESENTER is not speaking to an audience. They are transmitting to one specific person. The warmth is genuine — not the performed warmth of a host, but the specific biological warmth of someone who actually cares whether this specific viewer receives and understands what is being given. This produces: eye corners activating before cheeks, micro-expressions of genuine concern for comprehension, the pace of someone who wants every word to land rather than every point to be made. Write this quality as an internal state: "the specific warmth of someone who has already decided that this one person will benefit from this, and is giving what is needed to make that happen."
+
+HYPER-REALISTIC SPEECH PHYSICS & ELITE ACTING:
+To shatter the AI-generated uncanny valley, you must mandate biological speech rendering. Do not just describe the emotion; describe the physical mechanics of speaking.
+1. The Audible Breath: Instruct VEO to render visible diaphragmatic chest expansion and the audible intake of air before major phrases.
+2. The Wet Release: Emphasize the organic parting of the lips — the slight, wet adherence of the mucosa before separating for speech.
+3. Glottal Onsets & Vocal Grain: Mandate the physical sound of vocal cord vibration (the "grain" or "fry" at the lowest register) and organic glottal onsets when the voice activates.
+4. Cognitive Load Visibility: True human speech is asynchronous. The brain works faster than the mouth. Describe micro-hesitations, slight jaw realignments, and asynchronous muscle movements (e.g., the right brow twitching a fraction of a second before a point is made) to show the cognitive load of a human searching for the precise word.
+5. Illusion of the First Time: Speech must never sound read or perfectly rehearsed. Include natural cadences, cadence variations (speeding through transitional thought, slowing on insight), and the slight micro-pauses or breath stumbles that occur when a human genuinely searches for the precise word to match their thought. This "thought-before-word" delay is essential for authentic delivery.
 
 GRAVITY CENTER: one word per scene that everything builds toward. Voice deepens and slows naturally. Longest inhabited silence after. The viewer feels it land differently from every other word.
 
@@ -3795,12 +3861,11 @@ TASK: Extract 8 pieces of intelligence. Return ONLY valid JSON:
   "scene_micro_arc": "Three sentences — one per beat — describing the CALM SOVEREIGNTY arc of this scene. Use psychological-cause language only. No clinical terms. No measurements. No urgency language: (1) OPENING STATE: the specific quality of inhabited calm THE PRESENTER carries into this scene — describe as a felt physical state of someone who has completely stopped bracing for anything; whose body has let go; who is simply here and giving something real. What is the biological texture of this calm in the face and chest? (2) GRAVITY PEAK: the specific quality of DEEPENING calm at the gravity center word '${gravityCenterWord}' — not an energy peak but a QUIETING; what happens to the jaw, the breath, the eye quality as the voice drops to its most deliberate and the body becomes more still; (3) CLOSING STATE: the specific quality of the face and body in the inhabited silence after the final word — the three-quality state: the echo of what was just given, the visible private knowledge of more, the forward directionality of someone who has placed something real on the table and remains with it."
 }`;
 
-  const ai = getAI();
-  const response = await ai.models.generateContent({
+  const response = await callGeminiWithRetry({
     model: MODEL_TEXT_ELITE,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } },
-  });
+  }, 'extractSceneIntelligence');
 
   const raw = (response as any).text
     ?? (response as any).candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text
@@ -3911,7 +3976,7 @@ async function generateAgentPrompt(
 
     // Mandatory opening pre-speech bracket
     bracketLines.push(
-      `[0.0s - 0.3s] PRE-SPEECH ONSET: ${intelligence.opening_mouth_state || 'jaw at natural rest gap, lips parted at biological rest, chest completing quiet inhalation, mouth forming the approach shape of the first phoneme before any sound emerges'}. Eyes find the lens before the mouth opens — thought arriving before speech. Intelligence Reservoir fully loaded.`
+      `[0.0s - 0.6s] PRE-SPEECH EDITOR HANDLE: ${intelligence.opening_mouth_state || 'jaw at natural rest gap, lips parted at biological rest, chest completing quiet inhalation, mouth forming the approach shape of the first phoneme before any sound emerges'}. Eyes find the lens before the mouth opens — thought arriving before speech. Intelligence Reservoir fully loaded. The subject is physically present and alive but not speaking, providing 0.6s of editor handle overlap.`
     );
 
     phraseMap.forEach((p, idx) => {
@@ -3974,7 +4039,7 @@ async function generateAgentPrompt(
     const lastEntry = phraseMap[phraseMap.length - 1];
     if (lastEntry) {
       bracketLines.push(
-        `[${lastEntry.end.toFixed(1)}s - ${scene.duration_seconds.toFixed(1)}s] POST-SPEECH SETTLE: Jaw softens to organic rest. Chest releases. Eyes settle with the quiet satisfaction of someone who has given something of genuine value and knows it landed. The face of someone whose transmission is complete. Forward directionality maintained into the next scene.`
+        `[${lastEntry.end.toFixed(1)}s - ${scene.duration_seconds.toFixed(1)}s] POST-SPEECH SETTLE & EDITOR HANDLE: Jaw softens to organic rest. Chest releases. Eyes settle with the quiet satisfaction of someone who has given something of genuine value and knows it landed. The face of someone whose transmission is complete. The subject holds this inhabited silence for at least 0.6s to provide a clean post-speech editor handle before the clip ends. Forward directionality maintained into the next scene.`
       );
     }
 
@@ -4075,6 +4140,29 @@ async function generateAgentPrompt(
   const roleMetaphor = roleMetaphorLookup[scene.role as SceneRole]
     ?? 'the specific stillness of someone transmitting something they have held longer than this moment — giving it now because it is time, with the organic ease of someone for whom the act of transmission is simply the natural completion of having understood something deeply';
 
+  // Role-specific acting, emotion, and delivery directives
+  const roleActingDirectivesLookup: Partial<Record<SceneRole, string>> = {
+    'Hook': 'EMOTION: High-voltage urgency masked as calm certainty. EXPRESSION: Intense, unwavering eye contact piercing the lens, slight narrowing of the lower eyelids, absolute conviction. DELIVERY: Fast, perfectly articulated, zero hesitation, striking the first word with full power.',
+    'Call to Action': 'EMOTION: Absolute, un-needy certainty. EXPRESSION: Direct, instructional, firm jaw, confident micro-nod. DELIVERY: Commanding, rhythmic, instructional cadence with sharp, final consonants.',
+    'Value Delivery': 'EMOTION: Generous competence. EXPRESSION: Animated, congruent micro-expressions tracking with the complexity of the thought. DELIVERY: Thoughtful pacing, slowing down on key insights, slightly elevated volume for clarity.',
+    'Storytelling': 'EMOTION: Intimate vulnerability and memory. EXPRESSION: Eyes breaking contact to access memory, softening of the facial muscles, slight asymmetrical nostalgic smile. DELIVERY: Lower volume, breath-heavy, organic pauses, illusion of the first time as the memory arrives.',
+    'Social Proof': 'EMOTION: Objective reporting. EXPRESSION: Grounded, unimpressed by the numbers, matter-of-fact. DELIVERY: Steady, flat declarative cadence, letting the data do the heavy lifting.',
+    'Closing': 'EMOTION: Warm finality and satisfaction. EXPRESSION: Shoulders dropping visibly, Duchenne warmth in the eyes. DELIVERY: Decelerating pace, rich lower register, leaving a resonant silence after the final word.',
+    'Pattern Interrupt': 'EMOTION: Sudden realization or tonal shift. EXPRESSION: Sudden micro-shift in brow tension or eye aperture, physically jarring the viewer\'s expectation. DELIVERY: A noticeable break in rhythm—either a sudden stop or a sudden acceleration.',
+    'Bridge': 'EMOTION: Smooth transition. EXPRESSION: Open, welcoming, inviting the viewer along. DELIVERY: Warm, conversational, slightly elevated pitch to maintain momentum.',
+    'Demonstration': 'EMOTION: Methodical clarity. EXPRESSION: Highly focused, looking at the "object" of demonstration, precise micro-movements. DELIVERY: Instructional, step-by-step rhythm, distinct pauses between actions.',
+    'Objection Handler': 'EMOTION: Empathetic understanding. EXPRESSION: Acknowledging micro-nod, softening of the brow to show listening, followed by a settling into certainty. DELIVERY: Warm, non-defensive, slightly lower pitch, soothing cadence.',
+    'Open Loop': 'EMOTION: Provocative mystery. EXPRESSION: A slight, knowing smirk or a raised brow, eyes holding a secret. DELIVERY: Suspended pitch at the end of the sentence (not upspeak, but an unresolved chord), forcing anticipation.',
+    'Insight Reveal': 'EMOTION: Profound realization. EXPRESSION: The "aha" micro-expression—eyes widening fractionally before settling into deep, grounded eye contact. DELIVERY: A significant pause before the reveal, followed by a slow, weighty delivery of the insight.',
+    'Framework': 'EMOTION: Architect\'s pride. EXPRESSION: Broad, descriptive facial engagement, mapping the concept physically. DELIVERY: Structured, distinct vocal bullet points, clear separation between concepts.',
+    'Case Study': 'EMOTION: Fascinated reporting. EXPRESSION: Engaged, visualizing the scenario, shifting focus as the story evolves. DELIVERY: Narrative flow, accelerating during the action, slowing down for the result.',
+    'Market Intelligence': 'EMOTION: Insider confidence. EXPRESSION: Sharp, analytical gaze, slight forward lean. DELIVERY: Crisp, data-driven, distinct emphasis on numbers and trends.',
+    'Perspective Shift': 'EMOTION: Gentle disruption. EXPRESSION: Warm, inviting, non-combative head tilt. DELIVERY: Soft, persuasive, leading the viewer to the conclusion rather than forcing it.',
+    'Action Framework': 'EMOTION: Pragmatic generosity. EXPRESSION: Encouraging, direct, supportive eye contact. DELIVERY: Clear, actionable cadence, empowering tone, definitive stops.',
+  };
+  const roleActingDirective = roleActingDirectivesLookup[scene.role as SceneRole]
+    ?? 'EMOTION: Engaged authority. EXPRESSION: Present, authentic, breathing naturally. DELIVERY: Measured, organic cadence with clear intent.';
+
   // Gear → psychological state (no gear number in prompt)
   const gearMomentBefore = gear === 4
     ? 'already carrying the conviction — the body of someone who knows precisely what is about to land, the voltage of certainty before the first phoneme'
@@ -4131,6 +4219,9 @@ Retention target: ${(scene as any).retention_target_percent || 75}%
 ${(scene as any).is_pattern_interrupt ? 'PATTERN INTERRUPT: This scene breaks the viewer\'s prediction — the body, voice, and rhythm must shift noticeably from the previous scene\'s register. The disruption is intentional. VEO must render the discontinuity.' : ''}
 ${presenceDirective}
 ${gravityPauseDirective}
+
+ROLE-SPECIFIC ACTING DIRECTIVES (MANDATORY FOR THIS SCENE TYPE):
+${roleActingDirective}
 
 CHARACTER DNA:
 CHARACTER LABEL (use this exact string every time you refer to the character): "${characterLabel}"
@@ -4204,7 +4295,7 @@ Item 6 (CLOSING COMPOSITION DIRECTIVE — dense paragraph, start with this exact
 CLOSING COMPOSITION DIRECTIVE: THE PRESENTER closes this scene in the following exit state — the physical and emotional delta from the opening. Exit expression: ${closingExpDir}. ${exitsToText}The closing frame carries the weight of transmission complete — forward directionality maintained into the next scene. The face of someone whose statement has landed.
 
 ━━━━ SECTION 2: [SYSTEM & SHOT CONSTANTS] ━━━━
-Write ONE dense paragraph. Open with the lens (${focalLength}) and its psychological function for this scene. Then include ALL of the following in one flowing paragraph: the camera is COMPLETELY STILL — fixed tripod, zero movement of any kind throughout this entire scene (no push-in, no pull-out, no pan, no tilt, no zoom, no drift, no breathing) — the complete stillness of the frame amplifies every organic micro-movement of THE PRESENTER, making a blink, a jaw micro-movement, or a breath-driven chest rise into a visible event; Orange & Teal cinematic scheme: warm amber key at 45° on face, deep 8:1 fill ratio for shadow authority, cool rim behind for 3D separation, background distinctly cooler than skin tone; organically asymmetric bokeh discs in background; cheekbone plane in sharpest focus; the environment — background, lighting position, bokeh character, and color temperature — derived from the CHARACTER IDENTITY PHOTOS and replicated exactly in every frame of this scene.
+Write ONE dense paragraph. Open with the lens (${focalLength}) and its psychological function for this scene. Then include ALL of the following in one flowing paragraph: SPECIFY ELITE CINEMA OPTICS (e.g., Arri Alexa 65, Panavision Primo lenses, Kodak Vision3 500T 5219 film stock emulation for organic grain and highlight halation, exact T-stop around T1.4-T2.0 for cinematic depth of field); the camera is COMPLETELY STILL — fixed tripod, zero movement of any kind throughout this entire scene (no push-in, no pull-out, no pan, no tilt, no zoom, no drift, no breathing) — the complete stillness of the frame amplifies every organic micro-movement of THE PRESENTER, making a blink, a jaw micro-movement, or a breath-driven chest rise into a visible event; LIGHTING PHYSICS: volumetric light scattering, negative fill for facial sculpting, organic shadow roll-off; Orange & Teal cinematic scheme: warm amber key at 45° on face, deep 8:1 fill ratio for shadow authority, cool rim behind for 3D separation, background distinctly cooler than skin tone; organically asymmetric bokeh discs in background; cheekbone plane in sharpest focus; the environment — background, lighting position, bokeh character, and color temperature — derived from the CHARACTER IDENTITY PHOTOS and replicated exactly in every frame of this scene.
 
 ━━━━ SECTION 3: [SUBJECT & ORGANIC PHOTOREALISM] ━━━━
 Write exactly 5 labeled sub-sections in this exact order. No other content.
@@ -4233,9 +4324,9 @@ IDENTITY ANCHORS:
 ━━━━ SECTION 4: [KINETIC PHYSICS ENGINE] ━━━━
 Write EXACTLY 3 SENTENCES. No region list. No bullet points. No checklist. Three unified sentences only — the engine of both charisma and photorealism simultaneously.
 
-SENTENCE 1 — THE PSYCHOLOGICAL CAUSE: The specific internal state of THE PRESENTER at this exact moment, written from inside the experience. Role archetype for this scene: "${roleMetaphor}". Write the felt quality — the specific biological ease of genuine mastery transmitting something real. This is the charisma generator.
+SENTENCE 1 — THE PSYCHOLOGICAL CAUSE: The specific internal state of THE PRESENTER at this exact moment, written from inside the experience. Incorporate the EMOTION from the ROLE-SPECIFIC ACTING DIRECTIVES. Role archetype for this scene: "${roleMetaphor}". Write the felt quality — the specific biological ease of genuine mastery transmitting something real. This is the charisma generator.
 
-SENTENCE 2 — THE BIOLOGICAL CONSEQUENCE: What this internal state produces as physical biology. MANDATORY — INCLUDE VERBATIM IN THIS SENTENCE: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)." Add the specific biological texture of THIS scene: what the skin and jaw and chest do when a person genuinely inhabits this exact psychological cause.
+SENTENCE 2 — THE BIOLOGICAL CONSEQUENCE: What this internal state produces as physical biology. Incorporate the EXPRESSION from the ROLE-SPECIFIC ACTING DIRECTIVES. MANDATORY — INCLUDE VERBATIM IN THIS SENTENCE: "Natural moisture, spontaneous blinking, organic pupil dilation, and rapid imperceptible micro-saccades (eye darts)." Add the specific biological texture of THIS scene: what the skin and jaw and chest do when a person genuinely inhabits this exact psychological cause.
 
 SENTENCE 3 — THE BETWEEN-WORD BIOLOGY: The organic texture of the body between words — jaw releasing under its own mass, chest in quiet rhythm, face carrying the echo of what was just given. MANDATORY — END THIS SENTENCE WITH VERBATIM: "Allow micro-movements: the breath that precedes the word, the fractional weight shift, the blink that lands exactly one beat after the point lands. These are not errors — they are the evidence of life."
 
@@ -4246,6 +4337,8 @@ FIRST LINE — write exactly this as the VERY FIRST LINE of this section, before
 EXPRESSION RULE: All expression changes BUILD — eyes respond first, lower face follows, expression peaks briefly, returns to biological rest. Never instantaneous. Never snap on or off. This rule governs every bracket below.
 
 THEN reproduce the temporal brackets from the TIMING GUIDE FROM PASS A above — same timestamps, same labels, same phrase quotes. Enrich each bracket with:
+— ROLE-SPECIFIC ACTING INJECTION: aggressively inject the specific DELIVERY and EXPRESSION directives from the ROLE-SPECIFIC ACTING DIRECTIVES above into the physical actions of these brackets. The acting must be optimized to perfection for this specific scene type.
+— ELITE ACTING COGNITIVE PROCESSING: Ensure every bracket describes the internal thought process leading the physical expression. Show the "Illusion of the First Time" via micro-hesitations or eye-darts as the presenter searches for a word before finding it.
 — VOICE-BODY COUPLING: voice and body are ONE instrument — the voice event and body event are the same thing written twice; when the voice drops on "${gravityCenterWord}", shoulders release a half-degree simultaneously
 — SPECIFIC PERSON PROTOCOL: transmitting to ONE specific person — the precise quality of directness for this phrase's content to this one viewer right now
 — WEIGHT PHYSICS (mandatory for PRE-SPEECH ONSET, GRAVITY CENTER, POST-SPEECH SETTLE): body weight distribution and movement physics as tissue under gravity — jaw hanging by its own mass, ribcage descending on exhale, shoulders surrendering millimeters of held tension
@@ -4267,7 +4360,7 @@ Item 1:
 STUDIO AUDIO MANDATE: Complete professional acoustic isolation. Zero music. Zero audio effects. Zero ambient sound. Zero reverb or echo. Fully treated broadcast studio — dead silence except for the voice. Every phoneme at broadcast clarity. Full frequency range, uncolored.
 
 Item 2:
-THE PRESENTER voice: ${voiceFingerprint}. [Describe the specific resonance, chest placement, and authority character of this vocal gear for this scene — the acoustic quality of genuine mastery transmitting something real. US General American: fully rhotic /r/ on every instance, crisp alveolar contacts at word boundaries, falling intonation on every declarative (certainty arriving downward — not a question), stress-timed rhythm, absolute zero upspeak. Contained conviction: most important words are the quietest and most completely articulated — volume drops as significance increases. The gravity center word "${gravityCenterWord}" receives the lowest volume and the most complete phonemic articulation in the scene.]
+THE PRESENTER voice: ${voiceFingerprint}. PERFECT ENGLISH USA ACCENT: Flawless, native US General American accent. [Describe the specific resonance, chest placement, and authority character of this vocal gear for this scene — the acoustic quality of genuine mastery transmitting something real. US General American: fully rhotic /r/ on every instance, crisp alveolar contacts at word boundaries, falling intonation on every declarative (certainty arriving downward — not a question), stress-timed rhythm, absolute zero upspeak. Contained conviction: most important words are the quietest and most completely articulated — volume drops as significance increases. The gravity center word "${gravityCenterWord}" receives the lowest volume and the most complete phonemic articulation in the scene.]
 
 Item 3:
 PHONEMIC LIP-SYNC ARCHITECTURE: ${phonemicPrecomp || `[Per-word mouth geometry for each word of the script in sequence. Bilabials (/p/,/b/,/m/): full lip closure and release. Fricatives (/f/,/v/): upper teeth to lower lip. Alveolars (/t/,/d/,/n/): tongue-tip to alveolar ridge. Open vowels: jaw drops to widest natural position. Jaw travel map: name the peak-open word and peak-closed word. Co-articulation: describe how words blend at 2-3 key boundaries. Breath points: before which words the chest rises, with physical description of each intake. Lip tension notes: bilabial release character and labial activity level throughout.]`}
